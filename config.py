@@ -28,7 +28,7 @@ class Config:
 
 # ------------ DEFINE RULESETS HERE ------------ #
 
-classic = Ruleset(
+conway = Ruleset(
     conditions=(
         lambda n,s: False if n < 2 or n > 3 else s,
         lambda n,s: True if n==3 else s
@@ -71,7 +71,7 @@ biobrush = Ruleset(
 # ------------ DEFINE CONFIG HERE ------------ #
 
 config = Config(
-    behaviour=corruptor,
+    behaviour=conway,
     env_width=100,
     env_height=100,
     win_width=500,
