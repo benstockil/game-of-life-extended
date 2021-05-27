@@ -4,6 +4,8 @@ from pygame.display import update
 from pygame.locals import *
 from math import floor
 
+from config import config
+
 class Cell:
     def __init__(self, x, y, max_state, start_state, conditions, count_indirect_neighbours):
 
@@ -17,7 +19,7 @@ class Cell:
         self.count_indirect_neighbours = count_indirect_neighbours # cell can see diagonal neighbours
     
     # Get state of cell at <x, y> on grid, or return 0 if invalid
-    def getNeigbourState(self, grid, x, y):
+    def getNeighbourState(self, grid, x, y):
         if x >= 0 and x < len(grid) and y >= 0 and y < len(grid[0]):
             return grid[x][y].state
         else:
@@ -28,7 +30,7 @@ class Cell:
         x = self.x
         y = self.y
         return sum([
-            self.getNeigbourState(grid, n[0], n[1])
+            self.getNeighbourState(grid, n[0], n[1])
             for n in [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]
             ])
 
@@ -40,7 +42,7 @@ class Cell:
         for i in range(-1, 2):
             for j in range(-1, 2):
                 if not(i == 0 and j == 0):
-                    neighbours.append(self.getNeigbourState(grid, x+i, y+j))
+                    neighbours.append(self.getNeighbourState(grid, x+i, y+j))
         return sum(neighbours)
 
     # Set state of cell
@@ -55,6 +57,7 @@ class Cell:
         else:
             neighbours = self.getNeighboursDirect(grid)
 
+        # Pass current state through condition functions, clamp from 0 to max_state, and store in buffer
         for condition in self.conditions:
             self.state_buffer = max(min(condition(neighbours, self.state_buffer), self.max_state), 0)
     
@@ -63,8 +66,11 @@ class Cell:
         self.state = self.state_buffer
 
 class Environment:
-    def __init__(self, width, height, max_state, start_rule, conditions, count_indirect_neighbours):
+    def __init__(self, width, height, behaviour):
         self.grid = []
+        self.width = width
+        self.height = height
+        self.behaviour = behaviour
 
         # Populate grid
         for i in range(width):
@@ -72,10 +78,10 @@ class Environment:
             for j in range(height):
                 row.append(Cell(
                         i, j, 
-                        max_state,
-                        start_rule(i, j),
-                        conditions,
-                        count_indirect_neighbours
+                        behaviour.max_state,
+                        behaviour.start_rule(i, j),
+                        behaviour.conditions,
+                        behaviour.count_indirect_neighbours
                 ))
             self.grid.append(row)
     
@@ -106,49 +112,16 @@ class Environment:
             print("@")
         print("@ "*(self.width+2))
 
-
-## CONSTANTS
-
-# Environment configuration
-ENV_WIDTH, ENV_HEIGHT = 100, 100
-
-# Experimental rules
-# CONDITIONS = (
-#     lambda n, s: s-1 if n < 4 or n > 9 else s,
-#     lambda n, s: s+1 if n==7 else s
-# )
-# MAX_STATE = 11
-# START_RULE = lambda x, y: 0 
-
-# Original Conway's GOL rules
-CONDITIONS = (
-    lambda n, s: False if n < 2 or n > 3 else s,
-    lambda n, s: True if n==3 else s
-)
-MAX_STATE = 1
-START_RULE = lambda x, y: False
-COUNT_INDIRECT_NEIGHBOURS = True
-
-# GUI configuration
-WIN_WIDTH, WIN_HEIGHT = 1000, 1000
-CELL_GAP = 2
-
-# Colours on screen
-BG_COLOUR = Color(0, 0, 0)
-ALIVE_COLOUR = Color(240, 0, 120)
-DEAD_COLOUR = Color(30, 30, 30)
-
-
 # Instantiate environment
-env = Environment(ENV_WIDTH, ENV_HEIGHT, MAX_STATE, START_RULE, CONDITIONS, COUNT_INDIRECT_NEIGHBOURS)
+env = Environment(config.env_width, config.env_height, config.behaviour)
 
 # Calculate cell sizes
-cell_width = floor(WIN_WIDTH / ENV_WIDTH)
-cell_height = floor(WIN_HEIGHT / ENV_HEIGHT)
+cell_width = floor(config.win_width / config.env_width)
+cell_height = floor(config.win_height / config.env_height)
 
 # Initialise pygame
 pygame.init()
-screen = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT))
+screen = pygame.display.set_mode((config.win_width, config.win_height))
 pygame.display.set_caption("Conway's Game of Life")
 
 # Render multi-line text in Pygame (not my function)
@@ -174,9 +147,9 @@ def main():
     loops_since_update = 0
     update_duration = 4
     auto_update = False
-    mouse_draw_state = MAX_STATE
+    mouse_draw_state = config.behaviour.max_state
 
-    pygame.time.delay(round(60/1000))
+    # pygame.time.delay(round(60/1000))
     while True:
 
         if auto_update:
@@ -206,7 +179,7 @@ def main():
                 if keys[pygame.K_COMMA]:
                     mouse_draw_state = max(mouse_draw_state-1, 1)
                 if keys[pygame.K_PERIOD]:
-                    mouse_draw_state = min(mouse_draw_state+1, MAX_STATE)
+                    mouse_draw_state = min(mouse_draw_state+1, config.behaviour.max_state)
 
         # LMB: draw | RMB: erase
         lmb, _, rmb = pygame.mouse.get_pressed()
@@ -222,33 +195,33 @@ def main():
                 env.setCellState(cell_x, cell_y, 0)
         
         # Draw display
-        screen.fill(BG_COLOUR)
+        screen.fill(config.bg_colour)
         for i, row in enumerate(env.grid):
             for j, cell in enumerate(row):
                 # Interpolate between alive and dead colour based on the cell state
-                colour = DEAD_COLOUR.lerp(ALIVE_COLOUR, cell.state/MAX_STATE)
+                colour = config.dead_colour.lerp(config.alive_colour, cell.state/config.behaviour.max_state)
                 # Draw cell
                 pygame.draw.rect(screen, colour, pygame.Rect(
                     i*cell_width, 
                     j*cell_height, 
-                    cell_width - CELL_GAP, 
-                    cell_height - CELL_GAP
+                    cell_width - config.cell_gap, 
+                    cell_height - config.cell_gap
                 ))
 
         # Write text information
         information = (
-            f"MAX STATE: {MAX_STATE}\n"
-            f"COUNT INDIRECT NEIGHBOURS: {COUNT_INDIRECT_NEIGHBOURS}\n"
+            f"MAX STATE: {config.behaviour.max_state}\n"
+            f"COUNT INDIRECT NEIGHBOURS: {config.behaviour.count_indirect_neighbours}\n"
             f"UPDATE DURATION: {update_duration}\n"
             f"LOOPS SINCE UPDATE: {loops_since_update}\n"
             f"MOUSE DRAW STATE: {mouse_draw_state}\n"
         )
-        font = pygame.font.SysFont(None, 24)
-        blit_text(screen, information, (20, 20), font, color=Color("white"))
+        font = pygame.font.SysFont(None, 14)
+        blit_text(screen, information, (10, 10), font, color=Color("white"))
 
 
         # Update display
         pygame.display.flip()
 
-main()
+main() # Run main loop
 
